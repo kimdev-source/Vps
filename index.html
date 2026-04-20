@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>KimVPS | Real-time Status</title>
+    <title>KimVPS | Management System</title>
     <style>
         :root {
             --neon-blue: #00d2ff;
@@ -29,38 +29,36 @@
 
         .brand-container {
             text-align: center;
-            margin-bottom: 20px;
-            cursor: pointer;
+            margin-bottom: 40px;
+            width: 100%;
         }
 
         .brand-name {
-            font-size: 5rem;
+            font-size: clamp(3rem, 15vw, 5.5rem); /* ปรับขนาดตามหน้าจออัตโนมัติ */
             font-weight: 800;
             letter-spacing: 5px;
             color: #fff;
-            text-shadow: 0 0 15px rgba(0, 210, 255, 0.5);
+            text-shadow: 0 0 20px rgba(0, 210, 255, 0.6);
             margin: 0;
             text-transform: uppercase;
-            user-select: none;
         }
 
         .status-container {
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 15px;
-            font-size: 1.2rem;
+            gap: 12px;
+            font-size: 1.1rem;
             color: var(--neon-blue);
             letter-spacing: 2px;
             font-family: monospace;
+            margin-top: 10px;
         }
 
         .pulse-dot {
-            width: 12px;
-            height: 12px;
-            background-color: var(--neon-blue);
+            width: 10px;
+            height: 10px;
             border-radius: 50%;
-            box-shadow: 0 0 15px var(--neon-blue);
             animation: pulse 1.5s infinite;
         }
 
@@ -70,41 +68,50 @@
             100% { transform: scale(1); opacity: 1; }
         }
 
+        /* แก้บัค Stats: ใช้ Flexbox แบบกระจายตัวให้พอดีหน้าจอ */
         .stats-overlay {
             position: absolute;
-            bottom: 40px;
+            bottom: 50px;
             display: flex;
-            gap: 60px; /* เพิ่มระยะห่างให้ดูสมดุล */
-            font-family: monospace;
+            justify-content: space-around;
+            width: 90%;
+            max-width: 600px;
             background: rgba(255, 255, 255, 0.03);
-            padding: 20px 50px;
-            border-radius: 50px;
-            backdrop-filter: blur(10px);
+            padding: 20px 10px;
+            border-radius: 25px;
+            backdrop-filter: blur(15px);
             border: 1px solid rgba(0, 210, 255, 0.1);
         }
 
-        .stat-item { text-align: center; }
-        .stat-label { display: block; font-size: 0.75rem; color: #666; margin-bottom: 8px; letter-spacing: 1px; }
-        .stat-value { color: var(--neon-blue); font-size: 1.3rem; font-weight: bold; min-width: 100px; display: inline-block; }
+        .stat-item {
+            flex: 1;
+            text-align: center;
+        }
 
-        .hint {
-            position: absolute;
-            top: 20px;
-            color: #333;
-            font-size: 0.7rem;
+        .stat-label {
+            display: block;
+            font-size: 0.65rem;
+            color: #777;
+            margin-bottom: 5px;
             letter-spacing: 1px;
+            text-transform: uppercase;
+        }
+
+        .stat-value {
+            color: var(--neon-blue);
+            font-size: clamp(1rem, 4vw, 1.3rem);
+            font-weight: bold;
+            font-family: monospace;
         }
     </style>
 </head>
 <body>
 
-    <div class="hint">CLICK THE NAME TO TOGGLE OFFLINE MODE</div>
-
-    <div class="brand-container" onclick="toggleOffline()">
+    <div class="brand-container">
         <h1 class="brand-name">KimVPS</h1>
-        <div class="status-container" id="status-box">
+        <div class="status-container">
             <div class="pulse-dot" id="dot"></div>
-            <span id="status-text">INITIALIZING...</span>
+            <span id="status-text">SYNCING...</span>
         </div>
     </div>
 
@@ -118,7 +125,7 @@
             <span class="stat-value" id="ram">0.0 GB</span>
         </div>
         <div class="stat-item">
-            <span class="stat-label">NETWORK TRAFFIC</span>
+            <span class="stat-label">NETWORK</span>
             <span class="stat-value" id="net">0.0 KB/s</span>
         </div>
     </div>
@@ -127,80 +134,45 @@
         const OWNER = 'kimdev-source';
         const REPO = 'Vps';
 
-        let isManualOffline = false;
-
-        const cpuEl = document.getElementById('cpu');
-        const ramEl = document.getElementById('ram');
-        const netEl = document.getElementById('net');
-        const statusText = document.getElementById('status-text');
-        const dot = document.getElementById('dot');
-
-        function toggleOffline() {
-            isManualOffline = !isManualOffline;
-            if (isManualOffline) {
-                setTheme("OFFLINE", "var(--neon-red)");
-                cpuEl.innerText = "0%";
-                ramEl.innerText = "0.0 GB";
-                netEl.innerText = "0.0 KB/s";
-            } else {
-                updateDashboard();
-            }
-        }
-
         async function updateDashboard() {
-            if (isManualOffline) return;
-
             try {
                 const res = await fetch(`https://api.github.com/repos/${OWNER}/${REPO}/actions/runs?per_page=1`);
                 const data = await res.json();
                 const run = data.workflow_runs[0];
 
-                if (!run) {
-                    statusText.innerText = "NO ACTIONS FOUND";
-                    return;
-                }
-                
-                const isRunning = run.status === "in_progress" || run.status === "queued";
-                const isSuccess = run.conclusion === "success";
+                if (!run) return;
 
-                if (isRunning) {
-                    setTheme("DEPLOYING...", "var(--neon-orange)");
-                } else if (isSuccess) {
-                    setTheme("SYSTEM ONLINE", "var(--neon-blue)");
+                const statusText = document.getElementById('status-text');
+                const dot = document.getElementById('dot');
+
+                if (run.status === "in_progress" || run.status === "queued") {
+                    updateUI("DEPLOYING...", "var(--neon-orange)", statusText, dot);
+                } else if (run.conclusion === "success") {
+                    updateUI("SYSTEM ONLINE", "var(--neon-blue)", statusText, dot);
                 } else {
-                    setTheme("ACTION FAILED", "var(--neon-red)");
+                    updateUI("ACTION FAILED", "var(--neon-red)", statusText, dot);
                 }
-            } catch (err) {
-                if (!isManualOffline) statusText.innerText = "CONN ERROR";
+            } catch (e) {
+                console.error("API Error");
             }
         }
 
-        function setTheme(text, color) {
-            statusText.innerText = text;
-            statusText.style.color = color;
-            dot.style.backgroundColor = color;
-            dot.style.boxShadow = `0 0 15px ${color}`;
+        function updateUI(txt, col, el, dt) {
+            el.innerText = txt;
+            el.style.color = col;
+            dt.style.backgroundColor = col;
+            dt.style.boxShadow = `0 0 15px ${col}`;
         }
 
-        function animateValues() {
-            if (isManualOffline) return;
+        // สุ่มตัวเลขให้ดู Real-time (อ้างอิงสถานะจริง)
+        setInterval(() => {
+            const isBusy = document.getElementById('status-text').innerText.includes("DEPLOYING");
+            document.getElementById('cpu').innerText = (isBusy ? Math.floor(Math.random() * 30) + 60 : Math.floor(Math.random() * 8) + 2) + "%";
+            document.getElementById('ram').innerText = (isBusy ? (Math.random() * 1.2 + 2.8).toFixed(1) : (Math.random() * 0.4 + 0.6).toFixed(1)) + " GB";
+            document.getElementById('net').innerText = (isBusy ? (Math.random() * 1500).toFixed(1) : (Math.random() * 12).toFixed(1)) + " KB/s";
+        }, 2000);
 
-            const isBusy = statusText.innerText.includes("DEPLOYING");
-            // สุ่มค่าให้ดู Real-time
-            const cpu = isBusy ? Math.floor(Math.random() * 30) + 60 : Math.floor(Math.random() * 8) + 2;
-            const ram = isBusy ? (Math.random() * (4.5 - 3.0) + 3.0).toFixed(1) : (Math.random() * (1.2 - 0.6) + 0.6).toFixed(1);
-            const net = isBusy ? (Math.random() * 3500).toFixed(1) : (Math.random() * 20).toFixed(1);
-
-            cpuEl.innerText = `${cpu}%`;
-            ramEl.innerText = `${ram} GB`;
-            netEl.innerText = `${net} KB/s`;
-        }
-
-        // เช็ค GitHub ทุก 20 วินาที
-        setInterval(updateDashboard, 20000);
-        // ตัวเลขขยับทุก 2 วินาที
-        setInterval(animateValues, 2000);
-
+        setInterval(updateDashboard, 15000);
         updateDashboard();
     </script>
 </body>
